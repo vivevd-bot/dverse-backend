@@ -47,10 +47,14 @@ function seed() {
   const insC = db.prepare(`INSERT INTO chapters
     (book_id,seq,title,tier,price_coin,words,body) VALUES (?,?,?,?,?,?,?)`);
   let chap = 0;
+  // Alternate complete/ongoing: even index = complete, odd = ongoing
+  const completeFlags = [1,0,1,0,1,0,1,0,0,1];
+  let bookIdx = 0;
   for (const [id,title,type,format,cp,cat,tags,rating,reads,nCh] of CATALOG) {
     const pm = type === 'drama' ? 0.6 : 1;
+    const complete = completeFlags[bookIdx++ % completeFlags.length];
     insB.run(id,title,type,format,cp,cat,JSON.stringify(tags),rating,reads,
-             Math.round(reads/10000)%2===0?1:0,
+             complete,
              `${title} — bản quyền ${cp}.`, 'Nhóm dịch Thanh Vân',
              Math.round(reads/1500), Math.round(reads/90));
     for (const c of mkChapters(nCh, pm, type==='text'?'Chương':'Tập')) {
