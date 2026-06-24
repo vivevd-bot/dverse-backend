@@ -1,0 +1,8 @@
+{
+  "name": "dverse-backend",
+  "version": "1.0.0",
+  "description": "DVERSE production-ready reference backend (Node 22 + node:sqlite, zero deps)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node smoketest.js" },
+  "engines": { "node": ">=22.5" }
+}
