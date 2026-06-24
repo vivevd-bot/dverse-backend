@@ -113,6 +113,16 @@ CREATE TABLE IF NOT EXISTS daily_free (
 );
 CREATE INDEX IF NOT EXISTS idx_read_user_day ON reading_events(user_id, ts);
 CREATE INDEX IF NOT EXISTS idx_read_book ON reading_events(book_id, ts);
+CREATE TABLE IF NOT EXISTS social_accounts (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL REFERENCES users(id),
+  provider    TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  email       TEXT,
+  name        TEXT,
+  created_at  TEXT NOT NULL,
+  UNIQUE(provider, provider_id)
+);
 `);
 
 module.exports = { db, DB_PATH };

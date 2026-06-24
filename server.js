@@ -38,6 +38,63 @@ const server = http.createServer(async (req, res) => {
       const r = C.verifyOtp(body.phone, body.code);
       return r ? json(res, 200, r) : json(res, 401, { error: 'invalid_otp' });
     }
+    // Social login (Google, Zalo)
+    if (seg[0] === 'auth' && seg[1] === 'social' && seg[2] && req.method === 'POST') {
+      const provider = seg[2];
+      if (!['google', 'zalo'].includes(provider)) return json(res, 400, { error: 'unsupported_provider' });
+
+      let profile;
+
+      if (process.env.NODE_ENV !== 'prod' && body.dev) {
+        // DEV MODE: bypass OAuth
+        profile = {
+          id: body.email || body.phone || ('dev_' + Date.now()),
+          email: body.email || null,
+          name: body.name || 'Đạo hữu'
+        };
+      } else if (provider === 'google') {
+        const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+        if (!GOOGLE_CLIENT_ID || !body.credential) return json(res, 400, { error: 'missing_credential' });
+        try {
+          const https = require('https');
+          const payload = await new Promise((resolve, reject) => {
+            https.get('https://oauth2.googleapis.com/tokeninfo?id_token=' + body.credential, (r2) => {
+              let d = ''; r2.on('data', c => d += c); r2.on('end', () => {
+                try { const p2 = JSON.parse(d); if (p2.aud === GOOGLE_CLIENT_ID) resolve(p2); else reject(new Error('aud_mismatch')); } catch { reject(new Error('parse_error')); }
+              });
+            }).on('error', reject);
+          });
+          profile = { id: payload.sub, email: payload.email, name: payload.name };
+        } catch (e) {
+          return json(res, 401, { error: 'invalid_google_token', detail: e.message });
+        }
+      } else if (provider === 'zalo') {
+        const ZALO_APP_ID = process.env.ZALO_APP_ID;
+        const ZALO_APP_SECRET = process.env.ZALO_APP_SECRET;
+        if (!ZALO_APP_ID || !body.code) return json(res, 400, { error: 'missing_code' });
+        try {
+          const https = require('https');
+          const tokenData = await new Promise((resolve, reject) => {
+            const postData = JSON.stringify({ app_id: ZALO_APP_ID, app_secret: ZALO_APP_SECRET, code: body.code, grant_type: 'authorization_code' });
+            const opts = { hostname: 'oauth.zaloapp.com', path: '/v4/access_token', method: 'POST', headers: { 'Content-Type': 'application/json', 'secret_key': ZALO_APP_SECRET } };
+            const req2 = https.request(opts, (r2) => { let d = ''; r2.on('data', c => d += c); r2.on('end', () => { try { resolve(JSON.parse(d)); } catch { reject(new Error('parse')); } }); });
+            req2.on('error', reject); req2.write(postData); req2.end();
+          });
+          if (!tokenData.access_token) return json(res, 401, { error: 'zalo_token_failed' });
+          const userInfo = await new Promise((resolve, reject) => {
+            const opts = { hostname: 'graph.zalo.me', path: '/v2.0/me?fields=id,name', method: 'GET', headers: { 'access_token': tokenData.access_token } };
+            https.get(opts, (r2) => { let d = ''; r2.on('data', c => d += c); r2.on('end', () => { try { resolve(JSON.parse(d)); } catch { reject(new Error('parse')); } }); }).on('error', reject);
+          });
+          profile = { id: userInfo.id, name: userInfo.name, email: null };
+        } catch (e) {
+          return json(res, 401, { error: 'zalo_auth_failed', detail: e.message });
+        }
+      }
+
+      if (!profile) return json(res, 400, { error: 'no_profile' });
+      const result = C.socialLogin(provider, profile);
+      return json(res, 200, result);
+    }
     if (p === '/catalog' && req.method === 'GET') return json(res, 200, { books: C.catalog() });
     if (seg[0] === 'catalog' && seg[1] && req.method === 'GET') {
       const b = C.bookDetail(seg[1]);

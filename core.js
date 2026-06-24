@@ -190,8 +190,44 @@ function spendApi(userId, amount, label) {
   return r.ok ? { ok: true } : { ok: false, reason: r.reason };
 }
 
+// ---- SOCIAL LOGIN (Google / Zalo) ----------------------------------------
+function socialLogin(provider, profile) {
+  const { id: providerId, email, name } = profile;
+  const now_ = now();
+
+  // 1. Tìm social account
+  let row = db.prepare('SELECT * FROM social_accounts WHERE provider=? AND provider_id=?').get(provider, providerId);
+
+  let u;
+  if (row) {
+    u = db.prepare('SELECT * FROM users WHERE id=?').get(row.user_id);
+  } else {
+    // 2. Tìm user qua synthetic phone
+    const syntheticPhone = ('social_' + provider + '_' + providerId).substring(0, 50);
+    u = db.prepare('SELECT * FROM users WHERE phone=?').get(syntheticPhone);
+    if (!u) {
+      const id = uid('u_');
+      const displayName = name || email || 'Đạo hữu';
+      db.prepare('INSERT INTO users(id,phone,name,coin_paid,coin_free,created_at) VALUES(?,?,?,?,?,?)')
+        .run(id, syntheticPhone, displayName, 0, 20, now_);
+      db.prepare('INSERT INTO ledger(user_id,ts,title,detail,kind,amount) VALUES(?,?,?,?,?,?)')
+        .run(id, now_, 'Tặng khi tạo tài khoản', '+20 coin tặng', 'grant', 20);
+      u = db.prepare('SELECT * FROM users WHERE id=?').get(id);
+    }
+    // 3. Link social account
+    db.prepare('INSERT OR IGNORE INTO social_accounts(user_id,provider,provider_id,email,name,created_at) VALUES(?,?,?,?,?,?)')
+      .run(u.id, provider, providerId, email || null, name || null, now_);
+  }
+
+  // 4. Tạo session
+  const token = crypto.randomBytes(24).toString('hex');
+  db.prepare('INSERT INTO sessions(token,user_id,created_at,expires_at) VALUES(?,?,?,?)')
+    .run(token, u.id, now_, new Date(Date.now() + 30 * 864e5).toISOString());
+  return { token, user: publicUser(u) };
+}
+
 module.exports = {
-  requestOtp, verifyOtp, userByToken, publicUser,
+  requestOtp, verifyOtp, userByToken, publicUser, socialLogin,
   spend, spendApi, library, ledger, topup, subscribe, hasActivePass,
   catalog, bookDetail, readChapter, unlock, claimDailyFree,
   readingHeartbeat, passPoolReport, TOPUP, PLANS, COIN_VND,
