@@ -113,6 +113,16 @@ CREATE TABLE IF NOT EXISTS daily_free (
 );
 CREATE INDEX IF NOT EXISTS idx_read_user_day ON reading_events(user_id, ts);
 CREATE INDEX IF NOT EXISTS idx_read_book ON reading_events(book_id, ts);
+CREATE TABLE IF NOT EXISTS donations (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL REFERENCES users(id),
+  book_id     TEXT NOT NULL,
+  amount      INTEGER NOT NULL,
+  tier        TEXT NOT NULL,
+  message     TEXT,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_donations_book ON donations(book_id);
 CREATE TABLE IF NOT EXISTS social_accounts (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id     TEXT NOT NULL REFERENCES users(id),

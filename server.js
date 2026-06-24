@@ -95,11 +95,15 @@ const server = http.createServer(async (req, res) => {
       const result = C.socialLogin(provider, profile);
       return json(res, 200, result);
     }
+    if (p === '/rankings' && req.method === 'GET') return json(res, 200, C.rankings(url.searchParams.get('type') || 'hot'));
     if (p === '/catalog' && req.method === 'GET') return json(res, 200, { books: C.catalog() });
     if (seg[0] === 'catalog' && seg[1] && req.method === 'GET') {
       const b = C.bookDetail(seg[1]);
       return b ? json(res, 200, b) : json(res, 404, { error: 'not_found' });
     }
+    // /books/:bookId/donors (public)
+    if (seg[0] === 'books' && seg[1] && seg[2] === 'donors' && req.method === 'GET')
+      return json(res, 200, { donors: C.donationLeaderboard(seg[1]) });
 
     // ---- authed ----
     const u = auth(req);
@@ -113,6 +117,10 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, await C.topup(u.id, body.packageId, body.provider || 'vnpay', body.channel || 'direct'));
     if (p === '/membership/subscribe' && req.method === 'POST')
       return json(res, 200, await C.subscribe(u.id, body.plan, body.provider || 'vnpt', body.channel || 'telco_billing'));
+
+    // /books/:bookId/donate (authed)
+    if (seg[0] === 'books' && seg[1] && seg[2] === 'donate' && req.method === 'POST')
+      return json(res, 200, C.donate(u.id, seg[1], body.amount, body.message));
 
     // /chapters/:book/:seq  (GET = read, POST = unlock)
     if (seg[0] === 'chapters' && seg[1] && seg[2]) {

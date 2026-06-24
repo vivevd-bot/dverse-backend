@@ -190,6 +190,43 @@ function spendApi(userId, amount, label) {
   return r.ok ? { ok: true } : { ok: false, reason: r.reason };
 }
 
+// ---- DONATE / TIPPING ---------------------------------------------------
+function donate(userId, bookId, amount, message) {
+  const amt = parseInt(amount, 10) || 0;
+  if (amt <= 0) return { ok: false, reason: 'invalid_amount' };
+  const tier = amt >= 100000 ? 'minchu' : amt >= 10000 ? 'daihao' : 'hao';
+  const r = spend(userId, amt, `Ủng hộ truyện ${bookId}`);
+  if (!r.ok) return { ok: false, reason: r.reason };
+  db.prepare(`INSERT INTO donations(user_id,book_id,amount,tier,message,created_at)
+    VALUES(?,?,?,?,?,?)`).run(userId, bookId, amt, tier, message || null, now());
+  db.prepare('UPDATE books SET donate=donate+? WHERE id=?').run(amt, bookId);
+  return { ok: true, tier, amount: amt };
+}
+function donationLeaderboard(bookId) {
+  return db.prepare(`
+    SELECT d.user_id userId, u.name, SUM(d.amount) total,
+      CASE WHEN SUM(d.amount)>=100000 THEN 'minchu'
+           WHEN SUM(d.amount)>=10000 THEN 'daihao'
+           ELSE 'hao' END tier
+    FROM donations d JOIN users u ON u.id=d.user_id
+    WHERE d.book_id=? GROUP BY d.user_id ORDER BY total DESC LIMIT 10
+  `).all(bookId);
+}
+
+// ---- RANKINGS -------------------------------------------------------------
+function rankings(type) {
+  const validTypes = ['hot', 'new', 'ongoing', 'completed'];
+  if (!validTypes.includes(type)) type = 'hot';
+  let sql;
+  if (type === 'hot') sql = 'SELECT * FROM books ORDER BY reads DESC LIMIT 20';
+  else if (type === 'new') sql = 'SELECT * FROM books ORDER BY rowid DESC LIMIT 20';
+  else if (type === 'ongoing') sql = 'SELECT * FROM books WHERE complete=0 ORDER BY reads DESC LIMIT 20';
+  else sql = 'SELECT * FROM books WHERE complete=1 ORDER BY reads DESC LIMIT 20';
+  const books = db.prepare(sql).all();
+  return { type, books: books.map((b, i) => ({ rank: i+1, id: b.id, title: b.title, type: b.type,
+    cat: b.cat, reads: b.reads, rating: b.rating, complete: !!b.complete, cp: b.cp })) };
+}
+
 // ---- SOCIAL LOGIN (Google / Zalo) ----------------------------------------
 function socialLogin(provider, profile) {
   const { id: providerId, email, name } = profile;
@@ -231,4 +268,5 @@ module.exports = {
   spend, spendApi, library, ledger, topup, subscribe, hasActivePass,
   catalog, bookDetail, readChapter, unlock, claimDailyFree,
   readingHeartbeat, passPoolReport, TOPUP, PLANS, COIN_VND,
+  donate, donationLeaderboard, rankings,
 };

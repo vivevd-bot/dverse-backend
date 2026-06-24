@@ -9,11 +9,14 @@ function mkChapters(n, pm = 1, label = 'Chương') {
     const seq = i + 1;
     let tier = 'STANDARD';
     if (seq <= 3) tier = 'FREE';
+    else if (seq >= n - 1) tier = 'EARLY';  // last 2 chapters are early access
     else if (seq % 6 === 0) tier = 'PREMIUM';
     else if (seq % 4 === 0) tier = 'EARLY';
+    // Early access chapters cost 30 coins
+    const earlyPrice = 30;
     out.push({
       seq, title: `${label} ${seq}`, tier,
-      price_coin: Math.round(TIER_BASE[tier] * pm),
+      price_coin: tier === 'EARLY' ? earlyPrice : Math.round(TIER_BASE[tier] * pm),
       words: 2800 + seq * 40,
       body: `[${label} ${seq}] Nội dung mẫu. Bản thật nạp qua ContentImporter ` +
             `(dịch CN→VI trực tiếp, QC, publish). Tier=${tier}.`,
