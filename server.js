@@ -136,6 +136,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, C.readingHeartbeat(u, body.bookId, body.seq, body.seconds));
 
     // ---- LUCKY WHEEL ----
+    if (p === "/ping-spin" && req.method === "GET") return json(res, 200, {pong:true,v:"spin-v3"});
     if (p === '/spin/status' && req.method === 'GET') return json(res, 200, C.spinStatus(u.id));
     if (p === '/spin' && req.method === 'POST') return json(res, 200, C.spin(u.id, !!body.combo));
 
