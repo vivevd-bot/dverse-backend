@@ -135,4 +135,9 @@ CREATE TABLE IF NOT EXISTS social_accounts (
 );
 `);
 
+// Migrate: add spin columns to existing DBs (no-op if already present)
+['free_spin_used_date TEXT DEFAULT ""', 'free_spin_used_count INTEGER DEFAULT 0'].forEach(col => {
+  try { db.exec('ALTER TABLE users ADD COLUMN ' + col); } catch (e) {}
+});
+
 module.exports = { db, DB_PATH };

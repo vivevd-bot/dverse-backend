@@ -135,6 +135,10 @@ const server = http.createServer(async (req, res) => {
     if (p === '/reading/heartbeat' && req.method === 'POST')
       return json(res, 200, C.readingHeartbeat(u, body.bookId, body.seq, body.seconds));
 
+    // ---- LUCKY WHEEL ----
+    if (p === '/spin/status' && req.method === 'GET') return json(res, 200, C.spinStatus(u.id));
+    if (p === '/spin' && req.method === 'POST') return json(res, 200, C.spin(u.id, !!body.combo));
+
     return json(res, 404, { error: 'route_not_found', path: p });
   } catch (e) {
     return json(res, 500, { error: 'server_error', message: e.message });

@@ -263,10 +263,91 @@ function socialLogin(provider, profile) {
   return { token, user: publicUser(u) };
 }
 
+// ---- LUCKY WHEEL ----------------------------------------------------------
+const PRIZES = [
+  { index: 0, emoji: '🪙', label: '5 coin',         kind: 'coin', value: 5,   weight: 30 },
+  { index: 1, emoji: '💰', label: '20 coin',        kind: 'coin', value: 20,  weight: 25 },
+  { index: 2, emoji: '⭐', label: '30 EXP',         kind: 'exp',  value: 30,  weight: 20 },
+  { index: 3, emoji: '✨', label: '60 EXP',         kind: 'exp',  value: 60,  weight: 10 },
+  { index: 4, emoji: '💎', label: '50 coin',        kind: 'coin', value: 50,  weight: 8  },
+  { index: 5, emoji: '🎫', label: '2 phiếu đề cử',  kind: 'rt',   value: 2,   weight: 4  },
+  { index: 6, emoji: '🏆', label: '1 phiếu tháng', kind: 'mt',   value: 1,   weight: 2  },
+  { index: 7, emoji: '🎰', label: '100 coin',       kind: 'coin', value: 100, weight: 1  },
+];
+
+function wheelWeightedPick() {
+  const total = PRIZES.reduce((s, p) => s + p.weight, 0);
+  let r = Math.random() * total;
+  for (const p of PRIZES) { r -= p.weight; if (r <= 0) return p.index; }
+  return PRIZES.length - 1;
+}
+
+function spinStatus(userId) {
+  const u = db.prepare('SELECT free_spin_used_date, free_spin_used_count FROM users WHERE id=?').get(userId);
+  const t = today();
+  const freeSpinsLeft = (u.free_spin_used_date === t && u.free_spin_used_count >= 1) ? 0 : 1;
+  const midnight = new Date(); midnight.setUTCHours(24, 0, 0, 0);
+  return { ok: true, freeSpinsLeft, nextResetAt: midnight.toISOString() };
+}
+
+function spin(userId, combo) {
+  const u = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+  if (!u) return { ok: false, reason: 'not_found' };
+  const t = today();
+  let prizeIndexes = [];
+
+  if (combo) {
+    const r = spend(userId, 50, '3 lượt quay (combo)');
+    if (!r.ok) return { ok: false, reason: 'insufficient' };
+    prizeIndexes = [wheelWeightedPick(), wheelWeightedPick(), wheelWeightedPick()];
+  } else {
+    const freeUsed = u.free_spin_used_date === t ? (u.free_spin_used_count || 0) : 0;
+    if (freeUsed < 1) {
+      db.prepare('UPDATE users SET free_spin_used_date=?, free_spin_used_count=1 WHERE id=?').run(t, userId);
+    } else {
+      const r = spend(userId, 20, '1 lượt quay');
+      if (!r.ok) return { ok: false, reason: 'insufficient' };
+    }
+    prizeIndexes = [wheelWeightedPick()];
+  }
+
+  // Apply prizes
+  for (const idx of prizeIndexes) {
+    const prize = PRIZES[idx];
+    if (prize.kind === 'coin') {
+      db.prepare('UPDATE users SET coin_free=coin_free+? WHERE id=?').run(prize.value, userId);
+      db.prepare('INSERT INTO ledger(user_id,ts,title,detail,kind,amount) VALUES(?,?,?,?,?,?)')
+        .run(userId, now(), 'Vòng quay may mắn', '+' + prize.label, 'grant', prize.value);
+    } else if (prize.kind === 'exp') {
+      db.prepare('UPDATE users SET exp=exp+? WHERE id=?').run(prize.value, userId);
+    } else if (prize.kind === 'rt') {
+      db.prepare('UPDATE users SET r_tickets=r_tickets+? WHERE id=?').run(prize.value, userId);
+    } else if (prize.kind === 'mt') {
+      db.prepare('UPDATE users SET m_tickets=m_tickets+? WHERE id=?').run(prize.value, userId);
+    }
+  }
+
+  const updated = db.prepare('SELECT coin_paid,coin_free,free_spin_used_date,free_spin_used_count FROM users WHERE id=?').get(userId);
+  const freeSpinsLeft = (updated.free_spin_used_date === t && updated.free_spin_used_count >= 1) ? 0 : 1;
+  const midnight = new Date(); midnight.setUTCHours(24, 0, 0, 0);
+  const lastIdx = prizeIndexes[prizeIndexes.length - 1];
+
+  return {
+    ok: true,
+    prizeIndex: lastIdx,
+    prizes: prizeIndexes,
+    reward: PRIZES[lastIdx],
+    walletBalance: { coins: updated.coin_paid + updated.coin_free, freeCoins: updated.coin_free },
+    freeSpinsLeft,
+    nextResetAt: midnight.toISOString(),
+  };
+}
+
 module.exports = {
   requestOtp, verifyOtp, userByToken, publicUser, socialLogin,
   spend, spendApi, library, ledger, topup, subscribe, hasActivePass,
   catalog, bookDetail, readChapter, unlock, claimDailyFree,
   readingHeartbeat, passPoolReport, TOPUP, PLANS, COIN_VND,
   donate, donationLeaderboard, rankings,
+  PRIZES, spinStatus, spin,
 };
