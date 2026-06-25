@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "dverse-backend": {
+      "id": "88dd288f-c23d-4c02-873a-2637b2433505",
+      "environment": "7f5f9592-6a22-467e-982f-0fe97acfabf5",
+      "service": "6e5ff4f0-2072-49db-93ce-2b3fa2a4d892"
+    }
+  }
+}

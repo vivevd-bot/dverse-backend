@@ -138,7 +138,47 @@ const server = http.createServer(async (req, res) => {
     // ---- LUCKY WHEEL ----
     if (p === "/ping-spin" && req.method === "GET") return json(res, 200, {pong:true,v:"spin-v3"});
     if (p === '/spin/status' && req.method === 'GET') return json(res, 200, C.spinStatus(u.id));
-    if (p === '/spin' && req.method === 'POST') return json(res, 200, C.spin(u.id, !!body.combo));
+    if (p === '/spin' && req.method === 'POST') return json(res, 200, C.spin(u.id, !!body.combo, body.spinToken || null));
+
+    // ---- GACHA STUBS (P1 skeleton) ----------------------------------------
+    if (p === '/gacha/pools' && req.method === 'GET') return json(res, 200, { pools: [
+      { id: 'pool_huyenhuyem', name: 'Huyền Huyễn · Mùa 1', icon: '⚔️', rarity: { SSR: 2, SR: 15, R: 83 }, cost1: 100, cost10: 880, gachaEligible: true },
+      { id: 'pool_dverse', name: 'DVERSE Original', icon: '✨', rarity: { SSR: 3, SR: 20, R: 77 }, cost1: 80, cost10: 700, gachaEligible: true },
+    ]});
+    if (p === '/gacha/pull' && req.method === 'POST') {
+      const { poolId, count } = body;
+      const cost = count >= 10 ? (count === 10 ? 880 : 700) : (poolId === 'pool_dverse' ? 80 : 100);
+      const r = C.spendApi(u.id, cost, `Gacha ${count}x · ${poolId}`);
+      if (!r.ok) return json(res, 402, { error: 'INSUFFICIENT', needTopup: true });
+      const NAMES = ['Kiếm Thánh Lã Bố','Ma Vương Kiều','Tiên Nữ Ngọc Long','Đại Hiệp Tôn Ngộ','Long Vương Trần','Hắc Phong Nguyệt'];
+      const roll = () => { const r = Math.random(); return r < 0.02 ? 'SSR' : r < 0.17 ? 'SR' : 'R'; };
+      const cards = Array(count || 1).fill(null).map((_,i) => ({
+        id: `card_${Date.now()}_${i}`, name: NAMES[Math.floor(Math.random()*NAMES.length)],
+        rarity: roll(), poolId, emoji: ['⚔️','🗡️','🌸','💥','❄️','🔥'][Math.floor(Math.random()*6)]
+      }));
+      return json(res, 200, { ok: true, cards, wallet: { coins: r.balance } });
+    }
+    if (p === '/ranking/characters' && req.method === 'GET') return json(res, 200, { characters: [
+      { name: 'Kiếm Thánh Lã Bố', votes: 9800, rarity: 'SSR', emoji: '⚔️' },
+      { name: 'Ma Vương Kiều', votes: 8200, rarity: 'SR', emoji: '🗡️' },
+      { name: 'Tiên Nữ Ngọc Long', votes: 7100, rarity: 'SR', emoji: '🌸' },
+    ]});
+
+    // ---- RED PACKET STUBS (G5) --------------------------------------------
+    if (p === '/redpacket/open' && req.method === 'GET') return json(res, 200, { packets: [
+      { id: 'rp1', from: 'DVERSE Platform', title: '🎉 Lì xì Khai Trương!', amount: 50, total: 100, claimed: 23, expires: '2026-12-31' },
+      { id: 'rp2', from: 'China Literature', title: 'Chào mừng DVERSE 🎉', amount: 20, total: 200, claimed: 67, expires: '2026-12-31' },
+    ]});
+    if (p.startsWith('/redpacket/') && p.endsWith('/claim') && req.method === 'POST') {
+      const pktId = p.split('/')[2];
+      const AMOUNTS = { rp1: 50, rp2: 20 };
+      const amount = AMOUNTS[pktId] || 10;
+      // Grant coins as free coins (gift)
+      const r = C.spendApi ? null : null; // read-only check
+      const { db: db2 } = require('./db');
+      try { if (db2 && db2.prepare) db2.prepare('UPDATE users SET coin_free=coin_free+? WHERE id=?').run(amount, u.id); } catch(e) {}
+      return json(res, 200, { ok: true, amount, pktId });
+    }
 
     return json(res, 404, { error: 'route_not_found', path: p });
   } catch (e) {

@@ -68,11 +68,12 @@ function ledger(userId) {
 // ---- TOPUP (nạp coin qua billing adapter) ----------------------------------
 // 5-tier bonus đã chốt
 const TOPUP = {
-  t1: { vnd: 20000, coins: 1000, bonus: 0 },
-  t2: { vnd: 50000, coins: 2500, bonus: 100 },
-  t3: { vnd: 100000, coins: 5000, bonus: 350 },
-  t4: { vnd: 200000, coins: 10000, bonus: 900 },
-  t5: { vnd: 500000, coins: 25000, bonus: 3000 },
+  t1: { vnd: 2000, coins: 10, bonus: 0 },
+  t2: { vnd: 10000, coins: 50, bonus: 10 },
+  t3: { vnd: 20000, coins: 100, bonus: 50 },
+  t4: { vnd: 50000, coins: 250, bonus: 100 },
+  t5: { vnd: 100000, coins: 500, bonus: 300 },
+  spin_bundle_3: { vnd: 0, coins: 0, bonus: 0, description: '3 spin bundle · 50 coin' },
 };
 async function topup(userId, packageId, provider, channel) {
   const pkg = TOPUP[packageId];
@@ -290,7 +291,14 @@ function spinStatus(userId) {
   return { ok: true, freeSpinsLeft, nextResetAt: midnight.toISOString() };
 }
 
-function spin(userId, combo) {
+function spin(userId, combo, spinToken) {
+  // Idempotency: if spinToken already used, return cached result
+  if (spinToken) {
+    try {
+      const cached = db.prepare('SELECT result FROM spin_tokens WHERE token=? AND user_id=?').get(spinToken, userId);
+      if (cached) return JSON.parse(cached.result);
+    } catch(e) { /* spin_tokens table may not exist yet */ }
+  }
   const u = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
   if (!u) return { ok: false, reason: 'not_found' };
   const t = today();
@@ -332,7 +340,7 @@ function spin(userId, combo) {
   const midnight = new Date(); midnight.setUTCHours(24, 0, 0, 0);
   const lastIdx = prizeIndexes[prizeIndexes.length - 1];
 
-  return {
+  const result = {
     ok: true,
     prizeIndex: lastIdx,
     prizes: prizeIndexes,
@@ -341,6 +349,14 @@ function spin(userId, combo) {
     freeSpinsLeft,
     nextResetAt: midnight.toISOString(),
   };
+  // Cache result for idempotency if spinToken provided
+  if (spinToken) {
+    try {
+      db.prepare('CREATE TABLE IF NOT EXISTS spin_tokens(token TEXT PRIMARY KEY, user_id TEXT, result TEXT, created_at TEXT)').run();
+      db.prepare('INSERT OR IGNORE INTO spin_tokens(token,user_id,result,created_at) VALUES(?,?,?,?)').run(spinToken, userId, JSON.stringify(result), now());
+    } catch(e) {}
+  }
+  return result;
 }
 
 module.exports = {
