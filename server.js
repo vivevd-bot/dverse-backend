@@ -190,3 +190,4 @@ const PORT = process.env.PORT || 8787;
 if (require.main === module) server.listen(PORT, () => console.log('DVERSE API on :' + PORT));
 module.exports = { server };
 // spin endpoint — v1782353752
+// force-redeploy: 2026-06-25T10:15 spin+redpacket routes active
