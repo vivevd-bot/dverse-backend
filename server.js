@@ -31,7 +31,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     // ---- public ----
-    if (p === '/health') return json(res, 200, { ok: true, ts: Date.now() });
+    if (p === '/health') return json(res, 200, { ok: true, ts: Date.now(), v: 'spin-v4-1782354699' });
     if (p === '/auth/otp/request' && req.method === 'POST')
       return json(res, 200, C.requestOtp(body.phone));
     if (p === '/auth/otp/verify' && req.method === 'POST') {
