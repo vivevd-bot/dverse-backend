@@ -148,3 +148,4 @@ const server = http.createServer(async (req, res) => {
 const PORT = process.env.PORT || 8787;
 if (require.main === module) server.listen(PORT, () => console.log('DVERSE API on :' + PORT));
 module.exports = { server };
+// spin endpoint — v1782353752
