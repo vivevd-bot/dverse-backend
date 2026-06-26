@@ -31,6 +31,7 @@ const config = {
   otpTtlSec: int(env.OTP_TTL_SEC, 300),
   otpMaxAttempts: int(env.OTP_MAX_ATTEMPTS, 5),
   otpProvider: env.OTP_PROVIDER || 'stub',                    // 'stub' | 'telco' (cắm gateway thật)
+  otpDevCode: env.OTP_DEV_CODE || '000000',                   // mã cố định khi stub
 
   // VNPay
   vnp: {
