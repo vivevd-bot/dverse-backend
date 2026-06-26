@@ -1,0 +1,21 @@
+{
+  "name": "dverse-backend-core",
+  "version": "0.1.0",
+  "description": "DVERSE backend core — beta critical-path (auth, server-authoritative wallet, DRM chapter access, gacha enforce, VNPay IPN, security).",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "migrate": "node src/db/migrate.js",
+    "backup": "bash scripts/backup.sh",
+    "check": "for f in $(find src -name '*.js'); do node --check \"$f\" || exit 1; done && echo OK",
+    "seed": "node src/db/seed_content.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.21.0"
+  }
+}
