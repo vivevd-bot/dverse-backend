@@ -63,7 +63,7 @@ function donateTier(a) { return a >= 5000 ? 'Đại hộ pháp' : a >= 1000 ? 'H
 function donate(userId, bookId, amount, message) {
   amount = Math.floor(amount);
   if (!(amount > 0)) return { ok: false, reason: 'bad_amount' };
-  const sp = wallet.spend(userId, amount, { kind: 'spend', label: 'Donate ' + bookId, ref: 'donate:' + bookId });
+  const sp = wallet.spend(userId, amount, { kind: 'spend', label: 'Donate ' + bookId, ref: 'donate:' + bookId, paidOnly: true });
   if (!sp.ok) return { ok: false, reason: sp.code === 'INSUFFICIENT' ? 'insufficient' : 'spend_fail' };
   _donIns.run(userId, bookId, amount, String(message || '').slice(0, 200), Date.now());
   return { ok: true, tier: donateTier(amount), balance: sp.balance };

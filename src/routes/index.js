@@ -28,7 +28,7 @@ migrateGacha(db);
 db.exec('CREATE TABLE IF NOT EXISTS gacha_essence (user_id TEXT PRIMARY KEY, bal INTEGER NOT NULL DEFAULT 0)');
 const _gachaDeps = {
   getBalance: (u) => { const r = db.prepare('SELECT coin_free+coin_paid AS coin FROM wallet WHERE user_id=?').get(u); return r ? r.coin : 0; },
-  spend: (u, amt) => { const { spend: wSpend } = require('../services/wallet'); return wSpend(u, amt, { kind: 'gacha', label: 'Triệu hồi' }).ok; },
+  spend: (u, amt) => { const { spend: wSpend } = require('../services/wallet'); return wSpend(u, amt, { kind: 'gacha', label: 'Triệu hồi', paidOnly: true }).ok; },
   addEssence: (u, amt) => db.prepare('INSERT INTO gacha_essence (user_id,bal) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET bal=bal+?').run(u, amt, amt),
 };
 const payment = require('../services/payment');

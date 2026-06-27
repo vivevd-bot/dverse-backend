@@ -38,6 +38,14 @@ function spend(userId, amount, opts) {
     const w = _wallet.get(userId);
     const total = w.coin_free + w.coin_paid;
     if (total < amount) return { ok: false, code: 'INSUFFICIENT', balance: { coinFree: w.coin_free, coinPaid: w.coin_paid, coin: total } };
+    // paidOnly: donate/gacha chỉ tiêu xu nạp (paid), không tiêu xu free
+    if (opts.paidOnly) {
+      if (w.coin_paid < amount) return { ok: false, code: 'INSUFFICIENT', balance: { coinFree: w.coin_free, coinPaid: w.coin_paid, coin: total } };
+      const npx = w.coin_paid - amount;
+      _setWallet.run(w.coin_free, npx, Date.now(), userId);
+      _ledger.run(userId, 0, -amount, opts.kind || 'spend', opts.label || null, opts.ref || null, opts.idemKey || null, Date.now());
+      return { ok: true, balance: { coinFree: w.coin_free, coinPaid: npx, coin: w.coin_free + npx } };
+    }
     const useFree = Math.min(w.coin_free, amount);
     const usePaid = amount - useFree;
     const nf = w.coin_free - useFree;
