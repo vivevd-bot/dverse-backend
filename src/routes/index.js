@@ -8,6 +8,18 @@ const express = require('express');
 const { db } = require('../db');
 const { config } = require('../lib/config');
 const { auth, rateLimit } = require('../middleware');
+const { migrate: migrateWff, claimWff } = require('../wff');
+migrateWff(db);
+const _wffDeps = {
+  getChapterTier: (bookId, seq) => {
+    const row = db.prepare('SELECT tier FROM chapters WHERE book_id=? AND seq=?').get(bookId, seq);
+    if (!row) return null;
+    return row.tier === 'paid' ? 'STANDARD' : 'FREE';
+  },
+  grantOwnership: (userId, bookId, seq) => db.prepare(
+    "INSERT OR IGNORE INTO entitlements (user_id, book_id, seq, via, created_at) VALUES (?,?,?,'wait',unixepoch())")
+    .run(userId, bookId, seq),
+};
 const authSvc = require('../services/auth');
 const wallet = require('../services/wallet');
 const gacha = require('../services/gacha');
@@ -133,6 +145,13 @@ r.post('/payment/vnpay/create', auth, rateLimit('spend', rl.spendMax), (req, res
 });
 r.get('/payment/vnpay/ipn', (req, res) => res.json(payment.handleIpn(req.query)));
 r.post('/payment/vnpay/ipn', (req, res) => res.json(payment.handleIpn(Object.assign({}, req.query, req.body))));
+
+// ---------- WFF (Wait-For-Free) ----------
+r.post('/wff/claim', auth, rateLimit('spend', rl.spendMax), (req, res) => {
+  const b = req.body || {};
+  const out = claimWff(db, _wffDeps, req.user.id, b.bid, Number(b.seq));
+  res.status(out.status).json(out.body);
+});
 
 // ---------- Analytics ----------
 const _evIns = db.prepare('INSERT INTO events (user_id,anon_id,name,props,ts) VALUES (?,?,?,?,?)');
