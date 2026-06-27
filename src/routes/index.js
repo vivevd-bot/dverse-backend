@@ -70,6 +70,28 @@ r.post('/auth/social/:provider', rateLimit('auth', rl.authMax), (req, res) => {
 // ---------- Account ----------
 r.get('/me', auth, (req, res) => res.json(content.me(req.user.id)));
 r.get('/me/library', auth, (req, res) => res.json(content.library(req.user.id)));
+// GET /wallet/balance — server-authoritative, frontend displays only
+r.get('/wallet/balance', auth, (req, res) => {
+  const b = wallet.balance(req.user.id);
+  res.json({ free: b.coinFree, paid: b.coinPaid, total: b.coin, nextFreeExpiry: null });
+});
+
+// POST /wallet/faucet { source } — server decides amount, idempotent per user/source/day
+const FAUCETS = { 'mission:read': 3, 'mission:comment': 4, 'mission:vote': 4, 'mission:share': 5 };
+const idem = require('../services/idempotency');
+const { todayICT: _todayICT } = require('../wff');
+r.post('/wallet/faucet', auth, rateLimit('spend', rl.spendMax), (req, res) => {
+  const src = String((req.body || {}).source || '');
+  const amount = FAUCETS[src];
+  if (!amount) return res.status(400).json({ granted: false, message: 'Nguồn không hợp lệ' });
+  const idemKey = `faucet:${req.user.id}:${src}:${_todayICT()}`;
+  if (idem.getStored(idemKey)) return res.json({ granted: false, message: 'Hôm nay đã nhận rồi' });
+  const gr = wallet.grant(req.user.id, amount, 0, { kind: 'faucet', label: src, idemKey });
+  if (!gr.ok) return res.status(500).json({ granted: false, message: 'Lỗi server' });
+  const b = wallet.balance(req.user.id);
+  res.json({ granted: true, amount, balance: { free: b.coinFree, paid: b.coinPaid, total: b.coin } });
+});
+
 r.get('/wallet/ledger', auth, (req, res) => res.json(content.ledger(req.user.id)));
 r.post('/wallet/topup', auth, rateLimit('spend', rl.spendMax), (req, res) => {
   const b = req.body || {};

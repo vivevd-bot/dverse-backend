@@ -11,6 +11,7 @@
 // behavior (evening peak). Adjust TZ_OFFSET_MIN if infra runs another TZ.
 
 const TZ_OFFSET_MIN = 7 * 60; // UTC+7
+const WFF_MAX_BOOKS = 2;       // max distinct books per user per day
 
 function todayICT() {
   const now = new Date(Date.now() + TZ_OFFSET_MIN * 60 * 1000);
@@ -47,6 +48,18 @@ function claimWff(db, deps, userId, bookId, seq) {
   }
 
   const day = todayICT();
+
+  // Global cap: max WFF_MAX_BOOKS distinct books per user per day
+  const usedToday = db.prepare(
+    "SELECT COUNT(*) n FROM wff_claims WHERE user_id=? AND day=?"
+  ).get(userId, day).n;
+  const thisBookAlready = db.prepare(
+    "SELECT 1 FROM wff_claims WHERE user_id=? AND book_id=? AND day=?"
+  ).get(userId, bookId, day);
+  if (usedToday >= WFF_MAX_BOOKS && !thisBookAlready) {
+    return { status: 200, body: { granted: false, message: "Hết lượt đọc free hôm nay · tối đa 2 truyện/ngày" } };
+  }
+
   const insert = db.prepare(
     "INSERT INTO wff_claims (user_id, book_id, day, chapter_seq) VALUES (?, ?, ?, ?)"
   );
