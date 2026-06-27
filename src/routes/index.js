@@ -23,6 +23,14 @@ const _wffDeps = {
 const authSvc = require('../services/auth');
 const wallet = require('../services/wallet');
 const gacha = require('../services/gacha');
+const { migrate: migrateGacha, pullGacha } = require('../gacha');
+migrateGacha(db);
+db.exec('CREATE TABLE IF NOT EXISTS gacha_essence (user_id TEXT PRIMARY KEY, bal INTEGER NOT NULL DEFAULT 0)');
+const _gachaDeps = {
+  getBalance: (u) => { const r = db.prepare('SELECT coin_free+coin_paid AS coin FROM wallet WHERE user_id=?').get(u); return r ? r.coin : 0; },
+  spend: (u, amt) => { const { spend: wSpend } = require('../services/wallet'); return wSpend(u, amt, { kind: 'gacha', label: 'Triệu hồi' }).ok; },
+  addEssence: (u, amt) => db.prepare('INSERT INTO gacha_essence (user_id,bal) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET bal=bal+?').run(u, amt, amt),
+};
 const payment = require('../services/payment');
 const content = require('../services/content');
 const extras = require('../services/extras');
@@ -81,9 +89,8 @@ r.post('/chapters/:book/:seq/unlock', auth, rateLimit('spend', rl.spendMax), (re
 // ---------- Gacha ----------
 r.post('/gacha/pull', auth, rateLimit('spend', rl.spendMax), (req, res) => {
   const b = req.body || {};
-  const out = gacha.pull(req.user.id, b.poolId, Number(b.count) === 10 ? 10 : 1, idemKey(req));
-  if (!out.ok) return res.status(out.code === 'NO_RIGHTS' ? 403 : out.code === 'INSUFFICIENT' ? 402 : 400).json({ ok: false, reason: (out.code || '').toLowerCase() });
-  res.json({ ok: true, cards: mapCards(out.cards), pity: out.pity, walletBalance: { freeCoins: out.balance.coinFree, paidCoins: out.balance.coinPaid } });
+  const out = pullGacha(db, _gachaDeps, req.user.id, b.poolId, Number(b.count));
+  res.status(out.status).json(out.body);
 });
 r.get('/gacha/pools', auth, (req, res) => res.json({ ok: true, pools: gacha.poolView(req.user.id) }));
 r.get('/gacha/inventory', auth, (req, res) => {
